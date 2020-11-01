@@ -110,21 +110,9 @@ project "Vulkan-preatmospheric-scattering"
         "xcb",
         "pthread",
         "m",
-        "vulkan",
+        --"vulkan",
     }
-    
-    filter {}
-
-    files {
-        path.join(DIR, "src/**.c"),
-        path.join(DIR, "shaders/**.comp"),
-    }
-
-    removefiles {
-        path.join(DIR, "src/sx/*.c"),
-    }
-
-    filter 'files:**.comp'
+    filter "files:**.comp or **.vert or **.frag"
     -- A message to display while this build step is running (optional)
     buildmessage 'Compiling %{file.relpath}'
 
@@ -138,8 +126,21 @@ project "Vulkan-preatmospheric-scattering"
         '%{cfg.buildtarget.directory}/shaders/%{file.name}.spv',
         DIR..'"/shaders/%{file.name}.spv"',
     }
+    
+    filter {}
 
-    filter{}
+    files {
+        path.join(DIR, "src/**.c"),
+        path.join(DIR, "shaders/**.comp"),
+        path.join(DIR, "shaders/**.vert"),
+        path.join(DIR, "shaders/**.frag"),
+    }
+
+    removefiles {
+        path.join(DIR, "src/sx/*.c"),
+    }
+
+
 
 
 include "tests.lua"

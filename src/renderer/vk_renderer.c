@@ -26,7 +26,7 @@ SX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wunused-function")
 #include "dds-ktx/dds-ktx.h"
 SX_PRAGMA_DIAGNOSTIC_POP()
 
-/*#define VALIDATION_LAYERS*/
+#define VALIDATION_LAYERS
 
 int RENDERING_RESOURCES_SIZE = 2;
 int swapchain_image_count = 0;
@@ -79,6 +79,94 @@ typedef struct RendererContext {
 /*}}}*/
 
 static RendererContext vk_context;
+/*{{{char* vk_error_code(uint32_t cod) {*/
+char* vk_error_code(uint32_t cod) {
+    switch(cod) {
+        case 0:
+            return "VK_SUCCESS";
+        case 1:
+            return "VK_NOT_READY";
+        case 2:
+            return "VK_TIMEOUT";
+        case 3:
+            return "VK_EVENT_SET";
+        case 4:
+            return "VK_EVENT_RESET";
+        case 5:
+            return "VK_INCOMPLETE";
+        case -1:
+            return "VK_ERROR_OUT_OF_HOST_MEMORY ";
+        case -2:
+            return "VK_ERROR_OUT_OF_DEVICE_MEMORY ";
+        case -3:
+            return "VK_ERROR_INITIALIZATION_FAILED ";
+        case -4:
+            return "VK_ERROR_DEVICE_LOST ";
+        case -5:
+            return "VK_ERROR_MEMORY_MAP_FAILED ";
+        case -6:
+            return "VK_ERROR_LAYER_NOT_PRESENT ";
+        case -7:
+            return "VK_ERROR_EXTENSION_NOT_PRESENT ";
+        case -8:
+            return "VK_ERROR_FEATURE_NOT_PRESENT ";
+        case -9:
+            return "VK_ERROR_INCOMPATIBLE_DRIVER ";
+        case -10:
+            return "VK_ERROR_TOO_MANY_OBJECTS =";
+        case -11:
+            return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+        case -12:
+            return "VK_ERROR_FRAGMENTED_POOL";
+        case -13:
+            return "VK_ERROR_UNKNOWN";
+        case -1000069000:
+            return "VK_ERROR_OUT_OF_POOL_MEMORY = -1000";
+        case -1000072003:
+            return "VK_ERROR_INVALID_EXTERNAL_HANDLE = -1000";
+        case -1000161000:
+            return "VK_ERROR_FRAGMENTATION = -1000";
+        case -1000257000:
+            return "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS = -1000";
+        case -1000000000:
+            return "VK_ERROR_SURFACE_LOST_KHR = -1000";
+        case -1000000001:
+            return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR = -1000";
+        case 1000001003:
+            return "VK_SUBOPTIMAL_KHR = 1000";
+        case -1000001004:
+            return "VK_ERROR_OUT_OF_DATE_KHR = -1000";
+        case -1000003001:
+            return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR = -1000";
+        case -1000011001:
+            return "VK_ERROR_VALIDATION_FAILED_EXT = -1000";
+        case -1000012000:
+            return "VK_ERROR_INVALID_SHADER_NV = -1000";
+        case -1000150000:
+            return "VK_ERROR_INCOMPATIBLE_VERSION_KHR = -1000";
+        case -1000158000:
+            return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT = -1000";
+        case -1000174001:
+            return "VK_ERROR_NOT_PERMITTED_EXT = -1000";
+        case -1000255000:
+            return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT = -1000";
+        case 1000268000:
+            return "VK_THREAD_IDLE_KHR = 1000";
+        case 1000268001:
+            return "VK_THREAD_DONE_KHR = 1000";
+        case 1000268002:
+            return "VK_OPERATION_DEFERRED_KHR = 1000";
+        case 1000268003:
+            return "VK_OPERATION_NOT_DEFERRED_KHR = 1000";
+        case 1000297000:
+            return "VK_PIPELINE_COMPILE_REQUIRED_EXT = 1000";
+        case 0x7FFFFFF:
+            return "VK_RESULT_MAX_ENUM = 0x7";
+    }
+    return "Error code not found";
+}
+/*}}}*/
+
 
 
 /* {{{debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, */
@@ -962,7 +1050,7 @@ VkResult create_texture(Texture* texture, VkSamplerAddressMode sampler_address_m
     texture->image_buffer.image_view = VK_NULL_HANDLE;
     texture->image_buffer.memory = VK_NULL_HANDLE;
 
-    VkResult result;
+    VkResult result = VK_SUCCESS;
     sx_mem_block* mem = sx_file_load_bin(alloc, filepath);
     ddsktx_texture_info tc = {0};
     ddsktx_error err;
@@ -1551,6 +1639,7 @@ VkResult create_compute_pipeline(ComputePipelineInfo* info, VkPipeline* compute_
     }
     VkResult result =  vkCreateComputePipelines(vk_context.device.logical_device, VK_NULL_HANDLE, info->num_pipelines,
                                     create_info, NULL, compute_pipeline);
+
     sx_free(alloc, create_info);
     return result;
 }
@@ -1613,3 +1702,21 @@ void unmap_buffer_memory(Buffer* buffer) {
 }
 /*}}}*/
 
+/*{{{VkResult create_renderpass(RenderPassInfo* info, VkRenderPass* render_pass);*/
+VkResult create_renderpass(RenderPassInfo* info, VkRenderPass* render_pass) {
+    VkRenderPassCreateInfo create_info;
+    create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    create_info.pNext = NULL;
+    create_info.flags = 0;
+    create_info.attachmentCount = info->attachment_count;
+    create_info.pAttachments = info->attachment_descriptions;
+    create_info.subpassCount = info->subpass_count;
+    create_info.pSubpasses = info->subpass_description;
+    create_info.dependencyCount = info->supass_dependencies_count;
+    create_info.pDependencies = info->supass_dependencies;
+
+    VkResult result = vkCreateRenderPass(vk_context.device.logical_device, &create_info, NULL, render_pass);
+    VK_CHECK_RESULT(result);
+    return result;
+}
+/*}}}*/

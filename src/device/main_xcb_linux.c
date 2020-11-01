@@ -173,7 +173,7 @@ void _testerr(const char* file, const int line)
 			(int)err->error_code, xcb_event_get_error_label(err->error_code));
 		free(err);
 		err = NULL;
-		assert(0);
+		sx_assert(0);
 	}
 }
 
@@ -320,10 +320,10 @@ int run() {
     linux_device.cursor_mode = CM_NORMAL;
     create_window(WIDTH, HEIGHT);
 
-    if(!vk_renderer_init(win)) {
-        printf("erro\n");
-        return -1;
-    }
+    /*if(!vk_renderer_init(win)) {*/
+        /*printf("erro\n");*/
+        /*return -1;*/
+    /*}*/
     /*struct nk_context* ctx = nk_gui_init();*/
     /*struct nk_context* ctx = NULL;*/
 

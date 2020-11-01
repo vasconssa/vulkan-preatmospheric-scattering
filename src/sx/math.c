@@ -282,6 +282,7 @@ SX_CONSTFN float sx_log(float _a)
     return result;
 }
 
+#   if !(defined(__SSE2__) || (SX_COMPILER_MSVC && (SX_ARCH_64BIT || _M_IX86_FP >= 2)))
 // Reference: http://en.wikipedia.org/wiki/Fast_inverse_square_root
 SX_CONSTFN float sx_rsqrt(float _a)
 {
@@ -304,6 +305,7 @@ SX_CONSTFN float sx_sqrt(float _a)
     sx_assert(_a >= SX_NEAR_ZERO);
     return 1.0f / sx_rsqrt(_a);
 }
+#endif // if __SSE2__
 #else
 SX_CONSTFN float sx_floor(float _f)
 {
@@ -345,6 +347,7 @@ SX_CONSTFN float sx_log(float _a)
     return logf(_a);
 }
 
+#   if !(defined(__SSE2__) || (SX_COMPILER_MSVC && (SX_ARCH_64BIT || _M_IX86_FP >= 2)))
 SX_CONSTFN float sx_sqrt(float _a)
 {
     return sqrtf(_a);
@@ -354,9 +357,10 @@ SX_CONSTFN float sx_rsqrt(float _a)
 {
     return 1.0f / sqrtf(_a);
 }
+#   endif // if not __SSE2__
 #endif
 
-sx_mat4 sx_mat4_view_lookat(const sx_vec3 eye, const sx_vec3 target, const sx_vec3 up)
+sx_mat4 sx_mat4_view_lookat(sx_vec3 eye, sx_vec3 target, sx_vec3 up)
 {
     sx_vec3 zaxis = sx_vec3_norm(sx_vec3_sub(target, eye));
     sx_vec3 xaxis = sx_vec3_norm(sx_vec3_cross(zaxis, up));
@@ -370,7 +374,7 @@ sx_mat4 sx_mat4_view_lookat(const sx_vec3 eye, const sx_vec3 target, const sx_ve
     // clang-format on
 }
 
-sx_mat4 sx_mat4_view_lookatLH(const sx_vec3 eye, const sx_vec3 target, const sx_vec3 up)
+sx_mat4 sx_mat4_view_lookatLH(sx_vec3 eye, sx_vec3 target, sx_vec3 up)
 {
     sx_vec3 zaxis = sx_vec3_norm(sx_vec3_sub(target, eye));
     sx_vec3 xaxis = sx_vec3_norm(sx_vec3_cross(up, zaxis));
@@ -384,7 +388,7 @@ sx_mat4 sx_mat4_view_lookatLH(const sx_vec3 eye, const sx_vec3 target, const sx_
     // clang-format on
 }
 
-sx_mat4 sx_mat4_view_FPS(const sx_vec3 eye, float pitch, float yaw)
+sx_mat4 sx_mat4_view_FPS(sx_vec3 eye, float pitch, float yaw)
 {
     float cos_pitch = sx_cos(pitch);
     float sin_pitch = sx_sin(pitch);
@@ -400,7 +404,7 @@ sx_mat4 sx_mat4_view_FPS(const sx_vec3 eye, float pitch, float yaw)
                     0, 0, 0, 1.0f);
 }
 
-sx_mat4 sx_mat4_view_arcball(const sx_vec3 move, const sx_quat rot, const sx_vec3 target_pos)
+sx_mat4 sx_mat4_view_arcball(sx_vec3 move, sx_quat rot, sx_vec3 target_pos)
 {
     // CameraMat = Tobj * Rcam * Tcam;      // move -> rotate around pivot pt -> move to object pos
     // ViewMat = CameraMat(inv) = Tobj(inv) * Rcam(inv) * Tobj(inv)
@@ -796,7 +800,7 @@ sx_quat sx_mat4_quat(const sx_mat4* m)
     return q;
 }
 
-sx_mat4 sx_mat4x_inv(const sx_mat4* _mat)
+sx_mat4 sx_mat4_inv_transform(const sx_mat4* _mat)
 {
     float det = (_mat->m11 * (_mat->m22 * _mat->m33 - _mat->m23 * _mat->m32) +
                  _mat->m12 * (_mat->m23 * _mat->m31 - _mat->m21 * _mat->m33) +
@@ -823,7 +827,7 @@ sx_mat4 sx_mat4x_inv(const sx_mat4* _mat)
     return r;
 }
 
-sx_mat4 sx_mat4_from_normal(const sx_vec3 _normal, float _scale, const sx_vec3 _pos)
+sx_mat4 sx_mat4_from_normal(sx_vec3 _normal, float _scale, sx_vec3 _pos)
 {
     sx_vec3 tangent;
     sx_vec3 bitangent;
@@ -836,7 +840,7 @@ sx_mat4 sx_mat4_from_normal(const sx_vec3 _normal, float _scale, const sx_vec3 _
     return sx_mat4fv(row1.f, row2.f, row3.f, sx_vec4v3(_pos, 1.0f).f);
 }
 
-sx_mat4 sx_mat4_from_normal_angle(const sx_vec3 _normal, float _scale, const sx_vec3 _pos,
+sx_mat4 sx_mat4_from_normal_angle(sx_vec3 _normal, float _scale, sx_vec3 _pos,
                                   float _angle)
 {
     sx_vec3 tangent;
@@ -850,7 +854,7 @@ sx_mat4 sx_mat4_from_normal_angle(const sx_vec3 _normal, float _scale, const sx_
     return sx_mat4fv(row1.f, row2.f, row3.f, sx_vec4v3(_pos, 1.0f).f);
 }
 
-sx_mat4 sx_mat4_project_plane(const sx_vec3 plane_normal)
+sx_mat4 sx_mat4_project_plane(sx_vec3 plane_normal)
 {
     float xx = plane_normal.x * plane_normal.x;
     float yy = plane_normal.y * plane_normal.y;
@@ -867,7 +871,7 @@ sx_mat4 sx_mat4_project_plane(const sx_vec3 plane_normal)
     // clang-format on
 }
 
-sx_mat3 sx_quad_mat3(const sx_quat quat)
+sx_mat3 sx_quat_mat3(sx_quat quat)
 {
     float norm = sx_sqrt(sx_quat_dot(quat, quat));
     float s = norm > 0.0f ? (2.0f / norm) : 0.0f;
@@ -894,7 +898,7 @@ sx_mat3 sx_quad_mat3(const sx_quat quat)
     // clang-format on
 }
 
-sx_mat4 sx_quat_mat4(const sx_quat quat)
+sx_mat4 sx_quat_mat4(sx_quat quat)
 {
     float norm = sx_sqrt(sx_quat_dot(quat, quat));
     float s = norm > 0.0f ? (2.0f / norm) : 0.0f;
@@ -922,6 +926,47 @@ sx_mat4 sx_quat_mat4(const sx_quat quat)
     // clang-format on
 }
 
+sx_quat sx_quat_lerp(sx_quat _a, sx_quat _b, float t)
+{
+    float tinv = 1.0f - t;
+    float dot = sx_quat_dot(_a, _b);
+    sx_quat r;
+    if (dot >= 0.0f) {
+        r = sx_quat4f(tinv * _a.x + t * _b.x, tinv * _a.y + t * _b.y, tinv * _a.z + t * _b.z, tinv * _a.w + t * _b.w);
+    } else {
+        r = sx_quat4f(tinv * _a.x - t * _b.x, tinv * _a.y - t * _b.y, tinv * _a.z - t * _b.z, tinv * _a.w - t * _b.w);
+    }
+    return sx_quat_norm(r);
+}
+
+sx_quat sx_quat_slerp(sx_quat _a, sx_quat _b, float t)
+{
+    const float epsilon = 1e-6f;
+
+    float dot = sx_quat_dot(_a, _b);
+    bool flip = false;
+    if (dot < 0.0f) {
+        flip = true;
+        dot *= -1.0f;
+    }
+
+    float s1, s2;
+    if (dot > (1.0f - epsilon)) {
+        s1 = 1.0f - t;
+        s2 = t;
+        if (flip)
+            s2 *= -1.0f;
+    } else {
+        float omega = sx_acos(dot);
+        float inv_omega_sin = 1.0f / sx_sin(omega);
+        s1 = sx_sin((1.0f - t) * omega) * inv_omega_sin;
+        s2 = sx_sin(t * omega) * inv_omega_sin;
+        if (flip)
+            s2 *= -1.0f;
+    }
+    return sx_quat4f(s1 * _a.x + s2 * _b.x, s1 * _a.y + s2 * _b.y, s1 * _a.z + s2 * _b.z,
+                     s1 * _a.w + s2 * _b.w);
+}
 
 sx_mat4 sx_mat4_mul(const sx_mat4* _a, const sx_mat4* _b)
 {
@@ -929,131 +974,44 @@ sx_mat4 sx_mat4_mul(const sx_mat4* _a, const sx_mat4* _b)
                      sx_mat4_mul_vec4(_a, _b->col3).f, sx_mat4_mul_vec4(_a, _b->col4).f);
 }
 
-sx_vec3 sx_plane_normal(const sx_vec3 _va, const sx_vec3 _vb, const sx_vec3 _vc)
+sx_vec3 sx_plane_normal(sx_vec3 _va, sx_vec3 _vb, sx_vec3 _vc)
 {
     sx_vec3 ba = sx_vec3_sub(_vb, _va);
     sx_vec3 ca = sx_vec3_sub(_vc, _va);
-    sx_vec3 baca = sx_vec3_cross(ba, ca);
+    sx_vec3 baca = sx_vec3_cross(ca, ba);
 
     return sx_vec3_norm(baca);
 }
 
-sx_plane sx_plane3p(const sx_vec3 _va, const sx_vec3 _vb, const sx_vec3 _vc)
+sx_plane sx_plane3p(sx_vec3 _va, sx_vec3 _vb, sx_vec3 _vc)
 {
     sx_vec3 normal = sx_plane_normal(_va, _vb, _vc);
     return sx_planev(normal, -sx_vec3_dot(normal, _va));
 }
 
-sx_plane sx_planenp(const sx_vec3 _normal, const sx_vec3 _p)
+sx_plane sx_planenp(sx_vec3 _normal, sx_vec3 _p)
 {
     sx_vec3 normal = sx_vec3_norm(_normal);
     float d = sx_vec3_dot(_normal, _p);
     return sx_planev(normal, -d);
 }
 
-float sx_plane_distance(const sx_plane _plane, const sx_vec3 _p)
+float sx_plane_distance(sx_plane _plane, sx_vec3 _p)
 {
     return sx_vec3_dot(_plane.normal, _p) + _plane.dist;
 }
 
-sx_vec3 sx_plane_project_point(const sx_plane _plane, const sx_vec3 _p)
+sx_vec3 sx_plane_project_point(sx_plane _plane, sx_vec3 _p)
 {
     return sx_vec3_sub(_p, sx_vec3_mulf(_plane.normal, sx_plane_distance(_plane, _p)));
 }
 
-sx_vec3 sx_plane_origin(const sx_plane _plane)
+sx_vec3 sx_plane_origin(sx_plane _plane)
 {
     return sx_vec3_mulf(_plane.normal, -_plane.dist);
 }
 
-#if 0
-sx_aabb sx_aabb_transform(const sx_aabb* aabb, const sx_mat4* mat)
-{
-    sx_vec3 minpt;
-    sx_vec3 maxpt;
-    sx_vec3 t = sx_vec3fv(mat->col4.f);
-
-    minpt.x = maxpt.x = t.x;
-    minpt.y = maxpt.y = t.y;
-    minpt.z = maxpt.z = t.z;
-
-    if (mat->m11 > 0.0f) {
-        minpt.x += mat->m11 * aabb->xmin;
-        maxpt.x += mat->m11 * aabb->xmax;
-    }    else    {
-        minpt.x += mat->m11 * aabb->xmax;
-        maxpt.x += mat->m11 * aabb->xmin;
-    }
-
-    if (mat->m21 > 0.0f) {
-        minpt.y += mat->m21 * aabb->xmin;
-        maxpt.y += mat->m21 * aabb->xmax;
-    }    else     {
-        minpt.y += mat->m21 * aabb->xmax;
-        maxpt.y += mat->m21 * aabb->xmin;
-    }
-
-    if (mat->m31 > 0.0f)    {
-        minpt.z += mat->m31 * aabb->xmin;
-        maxpt.z += mat->m31 * aabb->xmax;
-    }    else    {
-        minpt.z += mat->m31 * aabb->xmax;
-        maxpt.z += mat->m31 * aabb->xmin;
-    }
-
-    if (mat->m12 > 0.0f) {
-        minpt.x += mat->m12 * aabb->ymin;
-        maxpt.x += mat->m12 * aabb->ymax;
-    }    else     {
-        minpt.x += mat->m12 * aabb->ymax;
-        maxpt.x += mat->m12 * aabb->ymin;
-    }
-
-    if (mat->m22 > 0.0f) {
-        minpt.y += mat->m22 * aabb->ymin;
-        maxpt.y += mat->m22 * aabb->ymax;
-    }    else    {
-        minpt.y += mat->m22 * aabb->ymax;
-        maxpt.y += mat->m22 * aabb->ymin;
-    }
-
-    if (mat->m32 > 0.0f) {
-        minpt.z += mat->m32 * aabb->ymin;
-        maxpt.z += mat->m32 * aabb->ymax;
-    }    else    {
-        minpt.z += mat->m32 * aabb->ymax;
-        maxpt.z += mat->m32 * aabb->ymin;
-    }
-
-    if (mat->m13 > 0.0f) {
-        minpt.x += mat->m13 * aabb->zmin;
-        maxpt.x += mat->m13 * aabb->zmax;
-    }    else     {
-        minpt.x += mat->m13 * aabb->zmax;
-        maxpt.x += mat->m13 * aabb->zmin;
-    }
-
-    if (mat->m23 > 0.0f) {
-        minpt.y += mat->m23 * aabb->zmin;
-        maxpt.y += mat->m23 * aabb->zmax;
-    }    else     {
-        minpt.y += mat->m23 * aabb->zmax;
-        maxpt.y += mat->m23 * aabb->zmin;
-    }
-
-    if (mat->m33 > 0.0f) {
-        minpt.z += mat->m33 * aabb->zmin;
-        maxpt.z += mat->m33 * aabb->zmax;
-    }    else     {
-        minpt.z += mat->m33 * aabb->zmax;
-        maxpt.z += mat->m33 * aabb->zmin;
-    }
-
-    return sx_aabbv(minpt, maxpt);
-}
-#endif
-
-static inline sx_mat3 sx_mat3_abs(const sx_mat3* m)
+SX_FORCE_INLINE sx_mat3 sx_mat3_abs(const sx_mat3* m)
 {
     return sx_mat3f(sx_abs(m->m11), sx_abs(m->m12), sx_abs(m->m13), 
                     sx_abs(m->m21), sx_abs(m->m22), sx_abs(m->m23), 

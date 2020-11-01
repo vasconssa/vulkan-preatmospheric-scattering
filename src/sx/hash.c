@@ -18,7 +18,7 @@ static inline SX_CONSTFN int sx__nearest_pow2(int n)
     return n;
 }
 
-static inline SX_CONSTFN bool sx__ispow2(int n)
+static inline SX_ALLOW_UNUSED SX_CONSTFN bool sx__ispow2(int n)
 {
     return (n & (n - 1)) == 0;
 }
@@ -304,9 +304,10 @@ sx_hashtbl* sx_hashtbl_create(const sx_alloc* alloc, int capacity)
 
 void sx_hashtbl_destroy(sx_hashtbl* tbl, const sx_alloc* alloc)
 {
-    sx_assert(tbl);
-    tbl->count = tbl->capacity = 0;
-    sx_free(alloc, tbl);
+    if (tbl) {
+        tbl->count = tbl->capacity = 0;
+        sx_free(alloc, tbl);
+    }
 }
 
 bool sx_hashtbl_grow(sx_hashtbl** ptbl, const sx_alloc* alloc)
@@ -329,7 +330,7 @@ bool sx_hashtbl_grow(sx_hashtbl** ptbl, const sx_alloc* alloc)
 
 void sx_hashtbl_init(sx_hashtbl* tbl, int capacity, uint32_t* keys_ptr, int* values_ptr)
 {
-    sx_assert(sx__ispow2(capacity) &&
+    sx_assertf(sx__ispow2(capacity),
               "Table size must be power of 2, get it from sx_hashtbl_valid_capacity");
 
     sx_memset(keys_ptr, 0x0, capacity * sizeof(uint32_t));
@@ -465,7 +466,7 @@ bool sx_hashtbltval_grow(sx_hashtbl_tval** ptbl, const sx_alloc* alloc)
 
 void sx_hashtbltval_init(sx_hashtbl_tval* tbl, int capacity, int value_stride, uint32_t* keys_ptr, void* values_ptr)
 {
-    sx_assert(sx__ispow2(capacity) &&
+    sx_assertf(sx__ispow2(capacity),
               "Table size must be power of 2, get it from sx_hashtbltval_valid_capacity");
 
     sx_memset(keys_ptr, 0x0, capacity * sizeof(uint32_t));

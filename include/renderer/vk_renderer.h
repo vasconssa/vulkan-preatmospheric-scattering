@@ -8,6 +8,7 @@
 #include "sx/allocator.h"
 #include "sx/hash.h"
 #include "device/types.h"
+#include <stdio.h>
 
 #if SX_PLATFORM_ANDROID
 #	define KHR_SURFACE_EXTENSION_NAME VK_KHR_ANDROID_SURFACE_EXTENSION_NAME
@@ -25,6 +26,18 @@
 //#include "vulkan/vulkan.h"
 
 #define DEBUG_RENDERER
+
+#define VK_CHECK_RESULT(f) \
+{ \
+    VkResult res = (f); \
+    if (res != VK_SUCCESS) \
+    { \
+        printf("Error: VkResult is %s in %s at line %d\n", vk_error_code(res), __FILE__, __LINE__); \
+        sx_assert_rel(res == VK_SUCCESS);           \
+    } \
+} 
+
+#define MAX_NUM_ATTACHMENTS 8
 
 
 typedef struct DeviceVk {
@@ -123,10 +136,71 @@ typedef struct CommandSubmitInfo {
     VkFence fence;
 } CommandSubmitInfo;
 
+typedef struct VertexInputStateInfo {
+    uint32_t binding_count;
+    VkVertexInputBindingDescription* binding_descriptions;
+    uint32_t attribute_count;
+    VkVertexInputAttributeDescription* attribute_descriptions;
+} VertexInputStateInfo;
+
+typedef struct InputAssemblyStateInfo {
+    VkPrimitiveTopology topology;
+    VkBool32 restart_enabled;
+} InputAssemblyStateInfo;
+
+typedef struct RasterizationStateInfo {
+    VkPolygonMode polygon_mode;
+    VkCullModeFlags cull_mode;
+    VkFrontFace front_face;
+} RasterizationStateInfo;
+
+typedef struct MultisampleStateInfo {
+    VkSampleCountFlagBits samples;
+    VkBool32 shadingenable;
+    float min_shading;
+} MultisampleStateInfo;
+
+typedef struct DepthStencilStateInfo {
+    VkBool32 depht_test_enable;
+    VkBool32 depht_write_enable;
+    VkCompareOp depht_compare_op;
+} DepthStencilStateInfo;
+
+typedef struct ColorBlendStateInfo {
+    uint32_t attachment_count;
+    bool* blend_enables;
+} ColorBlendStateInfo;
+
+typedef struct GraphicPipelineInfo {
+    VertexInputStateInfo* vertex_input;
+    InputAssemblyStateInfo* input_assembly;
+    RasterizationStateInfo* rasterization;
+    MultisampleStateInfo* multisample;
+    DepthStencilStateInfo* depth_stencil;
+    ColorBlendStateInfo* color_blend;
+
+    VkRenderPass render_pass; 
+    uint32_t subpass;
+    VkPipelineLayout* layout;
+
+    uint32_t shader_stages_count;
+    VkPipelineShaderStageCreateInfo* shader_stages;
+} GraphicPipelineInfo;
+
+typedef struct RenderPassInfo {
+    VkAttachmentDescription* attachment_descriptions;
+    uint32_t attachment_count;
+    VkSubpassDescription* subpass_description;
+    uint32_t subpass_count;
+    VkSubpassDependency* supass_dependencies;
+    uint32_t supass_dependencies_count;
+} RenderPassInfo;
+
 
 bool vk_renderer_init(DeviceWindow win);
 bool vk_resize(uint32_t width, uint32_t height);
 void vk_renderer_cleanup();
+char* vk_error_code(uint32_t cod);
 
 
 Swapchain create_swapchain(uint32_t width, uint32_t height);
@@ -162,9 +236,11 @@ VkResult create_descriptor_sets(VkDescriptorPool pool, VkDescriptorSetLayout* la
 
 void update_descriptor_set(DescriptorSetUpdateInfo* info);
 
+VkResult create_pipeline_layout(PipelineLayoutInfo* info, VkPipelineLayout* pipeline_layout);
+
 VkResult create_compute_pipeline(ComputePipelineInfo* info, VkPipeline* compute_pipeline);
 
-VkResult create_pipeline_layout(PipelineLayoutInfo* info, VkPipelineLayout* pipeline_layout);
+VkResult create_renderpass(RenderPassInfo* info, VkRenderPass* render_pass);
 
 VkResult create_fence(VkFence* fence, bool begin_signaled);
 

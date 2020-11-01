@@ -85,7 +85,7 @@ int device_run(void* win, void* data) {
 
     float dt = 0;
     /*game_init(world);*/
-    /*vk_renderer_init(*window);*/
+    vk_renderer_init(*window);
     MandelbrotInfo info;
     compute_mandelbrot(&info);
     printf("add: %p\n", &info);

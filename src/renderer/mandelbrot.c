@@ -28,7 +28,7 @@ void compute_mandelbrot(MandelbrotInfo *info) {
     bindings[0].pImmutableSamplers = NULL;
     DescriptorLayoutInfo layout_info = { .bindings = bindings, .num_bindings = 1};
     result = create_descriptor_layout(&layout_info, &info->descriptor_layout);
-    sx_assert_rel(result == VK_SUCCESS && "Could not create descriptor_layout");
+    VK_CHECK_RESULT(result);
 
     // Descriptor set
     result = create_descriptor_sets(info->descriptor_pool, &info->descriptor_layout, 1, &info->descriptor_set);
