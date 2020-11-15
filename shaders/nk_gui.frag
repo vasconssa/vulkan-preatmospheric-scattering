@@ -1,13 +1,13 @@
 #version 450
 
-layout(set = 1, binding = 0) uniform sampler2D font_textures[8];
+layout(set = 1, binding = 0) uniform sampler2D fontTexture[8];
+//layout(set=0, binding=0) uniform sampler2D fontTexture;
 
-layout(location = 0) in vec4 v_fragcolor;
-layout(location = 1) in vec2 v_uv;
-
-layout(location = 0) out vec4 outcolor;
+layout(location = 0) in vec4 fragColor;
+layout(location = 1) in vec2 fragUv;
+layout(location = 0) out vec4 outColor;
 
 void main() {
-    vec4 texcolor = texture(font_textures[0], v_uv);
-    outcolor = v_fragcolor * texcolor;
+    vec4 texColor = texture(fontTexture[0], fragUv);
+    outColor = fragColor * texColor;
 }

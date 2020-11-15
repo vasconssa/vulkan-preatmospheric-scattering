@@ -8,6 +8,7 @@
 #include "sx/allocator.h"
 #include "sx/hash.h"
 #include "device/types.h"
+//#include "vulkan/vulkan_core.h"
 #include <stdio.h>
 
 #if SX_PLATFORM_ANDROID
@@ -38,6 +39,7 @@
 } 
 
 #define MAX_NUM_ATTACHMENTS 8
+#define RENDERING_RESOURCES_SIZE 2
 
 
 typedef struct DeviceVk {
@@ -82,16 +84,19 @@ typedef struct DescriptorSetUpdateInfo {
     VkDescriptorType* buffer_descriptor_types;
     uint32_t* buffer_bindings;
     uint32_t num_buffer_bindings;
+    uint32_t* buffer_descriptor_count;
 
     VkDescriptorImageInfo* images_infos;
     VkDescriptorType* image_descriptor_types;
     uint32_t* image_bindings;
     uint32_t num_image_bindings;
+    uint32_t* image_descriptor_count;
 
     VkBufferView* texel_buffer_views;
     VkDescriptorType* texel_descriptor_types;
     uint32_t* texel_bindings;
     uint32_t num_texel_bindings;
+    uint32_t* texel_descriptor_count;
 
     VkDescriptorSet descriptor_set;
 } DescriptorSetUpdateInfo;
@@ -161,8 +166,8 @@ typedef struct MultisampleStateInfo {
 } MultisampleStateInfo;
 
 typedef struct DepthStencilStateInfo {
-    VkBool32 depht_test_enable;
-    VkBool32 depht_write_enable;
+    VkBool32 depth_test_enable;
+    VkBool32 depth_write_enable;
     VkCompareOp depht_compare_op;
 } DepthStencilStateInfo;
 
@@ -196,6 +201,23 @@ typedef struct RenderPassInfo {
     uint32_t supass_dependencies_count;
 } RenderPassInfo;
 
+typedef struct FramebufferInfo {
+    VkRenderPass render_pass;
+    VkImageView* attachments;
+    uint32_t attachment_count;
+    uint32_t width;
+    uint32_t height;
+    uint32_t layers;
+} FramebufferInfo;
+
+typedef struct PresentInfo {
+    uint32_t wait_semaphores_count;
+    VkSemaphore* wait_semaphores;
+    uint32_t swapchain_count;
+    VkSwapchainKHR* swapchains;
+    uint32_t* image_index;
+} PresentInfo;
+
 
 bool vk_renderer_init(DeviceWindow win);
 bool vk_resize(uint32_t width, uint32_t height);
@@ -205,7 +227,11 @@ char* vk_error_code(uint32_t cod);
 
 Swapchain create_swapchain(uint32_t width, uint32_t height);
 
+VkResult create_command_pool(QueueType type, VkCommandPoolCreateFlags flags, VkCommandPool* pool);
+
 VkResult create_command_buffer(QueueType type, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* cmdbuffer);
+
+void destroy_command_buffer(QueueType type, VkCommandBuffer* cmdbuffer);
 
 VkResult create_buffer(Buffer* buffer, VkBufferUsageFlags usage, 
                        VkMemoryPropertyFlags memory_properties_flags, VkDeviceSize size);
@@ -214,15 +240,21 @@ VkResult copy_buffer(Buffer* dst_buffer, void* data, VkDeviceSize size);
 
 VkResult copy_buffer_staged(Buffer* dst_buffer, void* data, VkDeviceSize size);
 
+VkResult create_image(uint32_t width, uint32_t height, VkImageUsageFlags usage, 
+        VkImageAspectFlags aspect, uint32_t mip_levels, ImageBuffer* image);
+
+void clear_image(ImageBuffer* image);
+
+VkResult create_depth_image(uint32_t width, uint32_t height, ImageBuffer* depth_image);
 VkResult create_texture(Texture* texture, VkSamplerAddressMode sampler_address_mode, const sx_alloc* alloc, const char* filepath);
 VkResult create_texture_from_data(Texture* texture, VkSamplerAddressMode sampler_address_mode, const sx_alloc* alloc, 
         const void* data, uint32_t width, uint32_t height);
 
 VkPipelineShaderStageCreateInfo load_shader(VkDevice logical_device, const char* filnename, VkShaderStageFlagBits stage);
 
-void clear_buffer(DeviceVk* device, Buffer* buffer);
+void clear_buffer(Buffer* buffer);
 
-void clear_texture(DeviceVk* device, Texture* texture);
+void clear_texture(Texture* texture);
 
 VkPipelineShaderStageCreateInfo load_shader(VkDevice logical_device, const char* filnename, VkShaderStageFlagBits stage);
 
@@ -240,11 +272,16 @@ VkResult create_pipeline_layout(PipelineLayoutInfo* info, VkPipelineLayout* pipe
 
 VkResult create_compute_pipeline(ComputePipelineInfo* info, VkPipeline* compute_pipeline);
 
+VkResult create_graphic_pipeline(GraphicPipelineInfo* info, VkPipeline* pipeline);
+
 VkResult create_renderpass(RenderPassInfo* info, VkRenderPass* render_pass);
 
 VkResult create_fence(VkFence* fence, bool begin_signaled);
 
+VkResult create_semaphore(VkSemaphore* sem);
+
 VkResult wait_fences(uint32_t num_fences, VkFence* fence, bool wait_all, uint64_t timeout);
+
 
 void destroy_fence(VkFence fence);
 
@@ -253,3 +290,21 @@ VkResult submit_commands(CommandSubmitInfo* info);
 void* map_buffer_memory(Buffer* buffer, VkDeviceSize offset);
 
 void unmap_buffer_memory(Buffer* buffer);
+
+VkResult create_framebuffer(FramebufferInfo* info, VkFramebuffer* framebuffer);
+
+void destroy_framebuffer(VkFramebuffer framebuffer);
+
+void reset_fences(uint32_t num_fences, VkFence* fence);
+
+VkResult acquire_next_image(VkSwapchainKHR swapchain, uint64_t timeout, VkSemaphore semaphore, uint32_t* image_index);
+
+VkResult present_image(PresentInfo* info);
+
+VkQueue get_queue(QueueType type);
+
+uint32_t get_queue_index(QueueType type);
+
+void device_wait_idle();
+
+void get_physical_device_format_properties(VkFormat format, VkFormatProperties* format_props);

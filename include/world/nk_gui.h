@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include "sx/allocator.h"
 #include "sx/math.h"
-#include "renderer/vk_renderer.h"
+#include "world/renderer.h"
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
@@ -23,19 +23,20 @@ typedef struct nk_vertex {
     nk_byte col[4];
 } nk_vertex;
 
-typedef struct GuiPushConstantBlock {
+typedef struct NkGuiPushConstantBlock {
     sx_vec2 scale;
     sx_vec2 translate;
-} GuiPushConstantBlock;
+} NkGuiPushConstantBlock;
 
-typedef struct GuiData {
+typedef struct NkGui {
+    const sx_alloc* alloc;
     struct nk_buffer cmds;
     struct nk_draw_null_texture null;
     struct nk_context context;
     struct nk_font_atlas atlas;
     struct nk_vec2 fb_scale;
 
-    GuiPushConstantBlock push_constants_block;
+    NkGuiPushConstantBlock push_constants_block;
 
     Buffer vertex_buffer;
     Buffer index_buffer;
@@ -46,18 +47,16 @@ typedef struct GuiData {
     VkDescriptorSetLayout descriptor_layout;
     VkDescriptorSet descriptor_set;
 
-    VkCommandBuffer command_buffer;
-
     VkPipelineLayout pipeline_layout;
     VkPipeline pipeline;
 
     VkFence fence;
 
-} GuiData;
+    Renderer* rd;
+} NkGui;
 
-void gui_create(GuiData* data);
-void gui_update(GuiData* data);
-void gui_draw(GuiData* data, VkCommandBuffer command_buffer);
+NkGui* nkgui_create(const sx_alloc* alloc, Renderer* rd);
+void nkgui_update(NkGui* gui);
 
-NK_API void nk_font_stash_begin(GuiData* gui, struct nk_font_atlas** atlas);
-NK_API void nk_font_stash_end(GuiData* gui);
+NK_API void nk_font_stash_begin(NkGui* gui, struct nk_font_atlas** atlas);
+NK_API void nk_font_stash_end(NkGui* gui);

@@ -4,6 +4,7 @@
 #include "macros.h"
 #include "sx/sx.h"
 #include "sx/os.h"
+#include "sx/jobs.h"
 #include "sx/io.h"
 #include "sx/allocator.h"
 #include "sx/atomic.h"

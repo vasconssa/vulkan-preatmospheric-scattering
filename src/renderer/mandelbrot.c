@@ -40,12 +40,14 @@ void compute_mandelbrot(MandelbrotInfo *info) {
     buffer_info.offset = 0;
     buffer_info.range = info->buffer.size;
     uint32_t buffer_binding = 0;
+    uint32_t buffer_descriptor_count = 1;
     VkDescriptorType desc_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     DescriptorSetUpdateInfo update_info = {0};
     update_info.buffer_infos = &buffer_info;
     update_info.buffer_descriptor_types = &desc_type;
     update_info.buffer_bindings = &buffer_binding;
     update_info.descriptor_set = info->descriptor_set;
+    update_info.buffer_descriptor_count = &buffer_descriptor_count;
     update_info.num_buffer_bindings = 1;
     update_info.num_image_bindings = 0;
     update_info.num_texel_bindings = 0;
