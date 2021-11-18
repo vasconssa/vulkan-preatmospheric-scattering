@@ -1,4 +1,4 @@
-# vulkan-preatmospheric-scattering
+# Vulkan Atmospheric Scattering
 An Vulkan implementation of Atmospheric Scattering.
 ## Generate build files
 ### Linux
