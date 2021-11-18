@@ -1,4 +1,8 @@
 #include "world/renderer.h"
+#include "sx/math.h"
+#include "vulkan/vulkan_core.h"
+#include "world/camera.h"
+#include "device/device.h"
 
 void update_composition_descriptors(Renderer* rd);
 VkResult renderer_frame(Renderer* rd, uint32_t resource_index, uint32_t image_index);
@@ -11,6 +15,7 @@ Renderer* create_renderer(const sx_alloc* alloc, uint32_t width, uint32_t height
     Renderer* rd = sx_malloc(alloc, sizeof(*rd));
     rd->width = width;
     rd->height = height;
+    rd->exposure = 0.8f;
     rd->subpass_callbacks_count[0] = 0;
     rd->subpass_callbacks_count[1] = 0;
     rd->subpass_callbacks_count[2] = 0;
@@ -39,6 +44,8 @@ Renderer* create_renderer(const sx_alloc* alloc, uint32_t width, uint32_t height
             sizeof(*(rd->graphic_cmdbuffer)));
     result = create_command_buffer(GRAPHICS, VK_COMMAND_BUFFER_LEVEL_PRIMARY, RENDERING_RESOURCES_SIZE, 
             rd->graphic_cmdbuffer);
+    VK_CHECK_RESULT(result);
+    result = create_command_buffer(COMPUTE, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1, &rd->compute_cmdbuffer);
     VK_CHECK_RESULT(result);
 
 
@@ -578,6 +585,28 @@ Renderer* create_renderer(const sx_alloc* alloc, uint32_t width, uint32_t height
 }
 /*}}}*/
 
+bool update_uniform_buffer(Renderer* rd) {
+        GlobalUBO ubo;
+        ubo.projection = perspective_mat((Camera*)&device()->camera);
+        ubo.inverse_projection = sx_mat4_inv(&ubo.projection);
+        ubo.view = view_mat((Camera*)&device()->camera);
+        ubo.inverse_view = sx_mat4_inv(&ubo.view);
+        ubo.projection_view = sx_mat4_mul(&ubo.projection, &ubo.view);
+        sx_vec3 pos = device()->camera.cam.pos;
+        ubo.camera_position = sx_vec4f(pos.x, pos.y, pos.z, 1.0);
+        ubo.exposure_gama = sx_vec4f(rd->exposure, 0.5, 0.5, 0.5);
+        ubo.light_position[0] = sx_vec4f(2000.0, 2000.0, 2000.0, 0.0);
+        ubo.light_position[1] = sx_vec4f(0.0, 10000.0, 0.0, 0.0);
+        ubo.light_position[2] = sx_vec4f(0.0, 10000.0, 0.0, 0.0);
+        ubo.light_position[3] = sx_vec4f(0.0, 10000.0, 0.0, 0.0);
+        /*ubo.view.col4 = SX_VEC4_ZERO;*/
+        /*memcpy(&ubo.view, &vk_context.camera->view, 16 * sizeof(float));*/
+        /*mat4_transpose(res_matrix, m);*/
+        copy_buffer(&rd->global_uniform_buffer,  &ubo, sizeof(ubo));
+
+        return true;
+}
+
 /*update_composition_descriptors(Renderer* rd){{{*/
 void update_composition_descriptors(Renderer* rd) {
     VkDescriptorImageInfo image_info[4];
@@ -848,6 +877,7 @@ bool renderer_draw(Renderer* rd) {
 
 /*{{{void renderer_render(Renderer* rd)*/
 void renderer_render(Renderer* rd) {
+    update_uniform_buffer(rd);
     renderer_draw(rd);
 }
 /*}}}*/

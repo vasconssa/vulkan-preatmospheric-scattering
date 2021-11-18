@@ -335,6 +335,7 @@ bool vk_renderer_init(DeviceWindow win) {
             vkGetPhysicalDeviceProperties(physical_devices[i], &device_props);
             if (device_props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
                 vk_context.device.physical_device = physical_devices[i];
+                printf("discrete\n");
             }
         }
         sx_free(alloc, physical_devices);
@@ -452,16 +453,36 @@ bool vk_renderer_init(DeviceWindow win) {
             queue_create_info[idx].queueCount = 1;
             queue_create_info[idx].pQueuePriorities = &queue_priority;
         }
+
+        VkPhysicalDeviceDescriptorIndexingFeatures indexing_features = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT,
+        };
+
+        VkPhysicalDeviceBufferDeviceAddressFeatures buffer_device_address_features = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+            .pNext = &indexing_features,
+        };
+
+        VkPhysicalDeviceFeatures2 device_features = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            .pNext = &buffer_device_address_features
+        };
+
+        vkGetPhysicalDeviceFeatures2(vk_context.device.physical_device, &device_features);
         
-        VkPhysicalDeviceFeatures device_features = {};
-        device_features.tessellationShader = VK_TRUE;
-        device_features.samplerAnisotropy = VK_TRUE;
-        device_features.fillModeNonSolid = VK_TRUE;
+        /*VkPhysicalDeviceFeatures device_features = {};*/
+        /*device_features.tessellationShader = VK_TRUE;*/
+        /*device_features.samplerAnisotropy = VK_TRUE;*/
+        /*device_features.fillModeNonSolid = VK_TRUE;*/
+        VkPhysicalDeviceVulkan12Features vk12_features = {};
+        vk12_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+        vk12_features.samplerMirrorClampToEdge = VK_TRUE;
+        vk12_features.bufferDeviceAddress = VK_FALSE;
 
 
         VkDeviceCreateInfo device_create_info;
         device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        device_create_info.pNext = NULL;
+        device_create_info.pNext = &vk12_features;
         device_create_info.flags = 0;
         device_create_info.queueCreateInfoCount = number_of_queues;
         device_create_info.pQueueCreateInfos = &queue_create_info[0];
@@ -475,7 +496,7 @@ bool vk_renderer_init(DeviceWindow win) {
 #endif
         device_create_info.enabledLayerCount = 0;
         device_create_info.ppEnabledLayerNames = NULL;
-        device_create_info.pEnabledFeatures = &device_features;
+        device_create_info.pEnabledFeatures = &device_features.features;
 
         result = vkCreateDevice(vk_context.device.physical_device, &device_create_info, NULL, &vk_context.device.logical_device);
         sx_assert_rel(result == VK_SUCCESS && "Could not create logical_device");
@@ -640,13 +661,13 @@ Swapchain create_swapchain( uint32_t width, uint32_t height) {
     swap_chain_create_info.oldSwapchain = vk_context.swapchain.swapchain;
     VkSwapchainKHR old_swapchain = vk_context.swapchain.swapchain;
 
+    /*if(old_swapchain != VK_NULL_HANDLE) {*/
+        /*vkDestroySwapchainKHR(vk_context.device.logical_device, old_swapchain, NULL);*/
+    /*}*/
     result = vkCreateSwapchainKHR(vk_context.device.logical_device, &swap_chain_create_info, NULL,
             &swapchain.swapchain);
     sx_assert_rel(result == VK_SUCCESS);
 
-    if(old_swapchain != VK_NULL_HANDLE) {
-        vkDestroySwapchainKHR(vk_context.device.logical_device, old_swapchain, NULL);
-    }
 
     vkGetSwapchainImagesKHR(vk_context.device.logical_device, swapchain.swapchain, &image_count, NULL);
     vkGetSwapchainImagesKHR(vk_context.device.logical_device, swapchain.swapchain, &image_count,
@@ -682,6 +703,7 @@ Swapchain create_swapchain( uint32_t width, uint32_t height) {
         sx_assert_rel(result == VK_SUCCESS);
     }
     swapchain.format = surface_format;
+    vk_context.swapchain = swapchain;
     /*RENDERING_RESOURCES_SIZE = image_count;*/
     return swapchain;
 }
@@ -821,15 +843,17 @@ void clear_buffer(Buffer* buffer) {
 
 /*{{{void clear_texture(DeviceVk* device, Texture* texture) {*/
 void clear_texture(Texture* texture) {
-    vkDestroySampler(vk_context.device.logical_device, texture->sampler, NULL);
-    clear_image(&texture->image_buffer);
+    if (texture->image_buffer.image != VK_NULL_HANDLE) {
+        vkDestroySampler(vk_context.device.logical_device, texture->sampler, NULL);
+        clear_image(&texture->image_buffer);
+    }
 }
 /*}}}*/
 
 /* {{{ VkResult create_texture_from_data(Texture* texture, VkSamplerAddressMode sampler_address_mode, const sx_alloc* alloc, */
 VkResult create_texture_from_data(Texture* texture, VkSamplerAddressMode sampler_address_mode, const sx_alloc* alloc, 
         const void* data, uint32_t width, uint32_t height) {
-    clear_texture(texture);
+    /*clear_texture(texture);*/
     VkResult result;
     Buffer staging;
     uint32_t size = width * height * 4;
@@ -859,7 +883,7 @@ VkResult create_texture_from_data(Texture* texture, VkSamplerAddressMode sampler
     image_create_info.arrayLayers = 1;
     image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
     image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
     image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_create_info.queueFamilyIndexCount = 0;
     image_create_info.pQueueFamilyIndices = NULL;

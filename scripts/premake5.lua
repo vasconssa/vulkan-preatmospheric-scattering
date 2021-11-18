@@ -112,14 +112,14 @@ project "Vulkan-preatmospheric-scattering"
         "m",
         --"vulkan",
     }
-    filter "files:**.comp or **.vert or **.frag"
+    filter "files:**.comp or **.vert or **.frag or **.glsl"
     -- A message to display while this build step is running (optional)
     buildmessage 'Compiling %{file.relpath}'
 
     -- One or more commands to run (required)
     buildcommands {
-      'glslc "%{file.relpath}" -o "%{cfg.buildtarget.directory}/shaders/%{file.name}.spv"',
-      'glslc "%{file.relpath}" -o'..DIR..'"/shaders/%{file.name}.spv"',
+      'glslc "%{file.relpath}" -I'..DIR..'/shaders/preatmospheric -o "%{cfg.buildtarget.directory}/shaders/%{file.name}.spv"',
+      'glslc "%{file.relpath}" -I'..DIR..'/shaders/preatmospheric -o'..DIR..'"/shaders/%{file.name}.spv"',
     }
 
     buildoutputs {
@@ -131,9 +131,10 @@ project "Vulkan-preatmospheric-scattering"
 
     files {
         path.join(DIR, "src/**.c"),
-        path.join(DIR, "shaders/**.comp"),
-        path.join(DIR, "shaders/**.vert"),
-        path.join(DIR, "shaders/**.frag"),
+        path.join(DIR, "shaders/*.comp"),
+        path.join(DIR, "shaders/*.vert"),
+        path.join(DIR, "shaders/*.frag"),
+        path.join(DIR, "shaders/sky/*"),
     }
 
     removefiles {

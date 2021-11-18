@@ -15,6 +15,8 @@ layout(set=0, binding=0) uniform u_global_ubo {
     mat4 projection;
     mat4 view;
     mat4 projection_view;
+    mat4 inverse_view;
+    mat4 inverse_projection;
     vec4 light_position[4];
     vec4 camera_position;
     vec4 exposure_gama;

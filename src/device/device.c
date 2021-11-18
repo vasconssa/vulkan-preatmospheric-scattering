@@ -40,7 +40,7 @@ bool process_events(InputManager* input_manager, World* world, bool vsync) {
 			reset   = true;
             game_device.viewport.xmax = event.resolution.width;
             game_device.viewport.ymax = event.resolution.height;
-            /*game_device.camera.cam.viewport = game_device.viewport;*/
+            game_device.camera.cam.viewport = game_device.viewport;
             renderer_resize(world->renderer, event.resolution.width, event.resolution.height);
             /*printf("resx: %d, resy: %d\n", event.resolution.width, event.resolution.height);*/
 			break;
@@ -83,6 +83,7 @@ int device_run(void* win, void* data) {
 
     World* world = create_world(alloc, window->width, window->height);
     game_device.input_manager = create_input_manager(alloc);
+    fps_init(&game_device.camera, 60, game_device.viewport, 0.01, 10000.0);
 
     /*game_device.camera.cam.pos.x = 15.2;*/
     /*game_device.camera.cam.pos.y = 16.5;*/
@@ -92,15 +93,16 @@ int device_run(void* win, void* data) {
 
     world_init(world);
 
-    MandelbrotInfo info;
-    compute_mandelbrot(&info);
-    printf("add: %p\n", &info);
-    save_image(&info);
-    printf("thread finished\n");
-    fflush(stdout);
+    /*MandelbrotInfo info;*/
+    /*compute_mandelbrot(&info);*/
+    /*printf("add: %p\n", &info);*/
+    /*save_image(&info);*/
+    /*printf("thread finished\n");*/
+    /*fflush(stdout);*/
 
     while(!process_events(game_device.input_manager, world, false)) {
         dt = (float)sx_tm_sec(sx_tm_laptime(&last_time));
+        fps_camera_update(&game_device.camera, dt, world->cam_translation_speed);
         world_update(world, dt);
         input_manager_update(game_device.input_manager);
         /*printf("fps: %lf\n", 1.0/dt);*/

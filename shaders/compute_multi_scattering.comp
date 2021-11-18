@@ -1,0 +1,345 @@
+#version 450
+
+#define WIDTH 32
+#define HEIGHT 32
+#define WORKGROUP_SIZE 8
+
+layout (local_size_x = 1, local_size_y = 1, local_size_z = 64) in;
+
+layout(set=0, binding=0) uniform u_atmosphere_ubo {
+    vec4 rayleighScattering;
+    vec4 mieScattering;
+    vec4 mieAbsorption;
+    vec4 sunDir;
+    float bottom;
+    float top;
+} atmosphere;
+
+layout(set=0, binding = 1, rgba8) uniform image2D image;
+
+layout(set = 0, binding = 2) uniform sampler2D transmittanceTex;
+
+#define PI 3.14159265358f
+
+float intersectRaySphere(vec3 ro, vec3 rd, vec3 so, float sr)
+{
+    vec3 f = ro - so;
+    float b2 = dot(f, rd);
+    float r2 = sr * sr;
+    vec3 fd = f - b2 * rd;
+    float discriminant = r2 - dot(fd, fd);
+    if (discriminant < 0.f)
+        return -1.f;
+
+    float c = dot(f, f) - r2;
+    float sqrtv = sqrt(discriminant);
+    float q = (b2 >= 0) ? -sqrtv - b2 : sqrtv - b2;
+
+    float t0 = c / q;
+    float t1 = q;
+
+    if (t0 < 0.f && t1 < 0.f)
+        return -1.f;        
+    
+    return t0 < 0.f ? max(0.f, t1) : t1 < 0.f ? max(0.f, t0) : max(0.f, min(t0, t1));
+}
+
+float getRayTmax(vec3 pos, vec3 dir, float maxMax) {
+    vec3 org = vec3(0.f);
+    float tBottom = intersectRaySphere(pos, dir, org, atmosphere.bottom);
+    float tTop = intersectRaySphere(pos, dir, org, atmosphere.top);
+    float tMax = 0.0f;
+
+    if (tBottom < 0.0f) {
+        if (tTop < 0.0f) {
+            return 0.0f;
+        } else {
+            tMax = tTop;
+        }
+    } else {
+        if (tTop > 0.0f) {
+            tMax = min(tTop, tBottom);
+        }
+    }
+
+    tMax = min(tMax, maxMax);
+
+    return tMax;
+}
+
+
+float getRayleighPhase(float mu) {
+    return (3.f * (1.f + mu * mu)) / (16.f * PI);
+}
+
+float getCornettePhase(float g, float mu) {
+    const float g2 = g * g;
+    return (3.f * (1.f - g2) * (1.f + mu * mu)) / (8.f * PI * (2 + g2) * pow(1 + g2 - 2 * g * mu, 3.f / 2.f));
+}
+
+struct MediumRGBSample {
+    vec3 scattering;
+    vec3 absorption;
+    vec3 extinction;
+
+    vec3 mieScattering;
+    vec3 mieAbsorption;
+    vec3 mieExtinction;
+
+    vec3 rayleighScattering;
+    vec3 rayleighAbsorption;
+    vec3 rayleighExtinction;
+};
+
+MediumRGBSample sampleMedium(vec3 pos) {
+    const float height = length(pos) - atmosphere.bottom;
+    
+    const float mDensity = exp(-height / 1.2f);
+    const float rDensity = exp(-height / 8.f);
+
+    MediumRGBSample s;
+
+    s.mieScattering = mDensity * atmosphere.mieScattering.rgb;
+    s.mieAbsorption = mDensity * atmosphere.mieAbsorption.rgb;
+    s.mieExtinction = mDensity * (atmosphere.mieScattering.rgb + atmosphere.mieAbsorption.rgb);
+
+    s.rayleighScattering = rDensity * atmosphere.rayleighScattering.rgb;
+    s.rayleighAbsorption = vec3(0.f);
+    s.rayleighExtinction = s.rayleighScattering + s.rayleighAbsorption;
+
+    s.scattering = s.mieScattering + s.rayleighScattering.rgb;
+    s.absorption = s.mieAbsorption + s.rayleighAbsorption.rgb;
+    s.extinction = s.mieExtinction + s.rayleighExtinction.rgb;
+
+    return s;
+}
+
+vec3 sunRadiance(vec3 pos, vec3 dir, vec3 color, bool limb)
+{
+    const vec3 sunDir = normalize(atmosphere.sunDir.xyz);
+    const vec3 forward = vec3(0.f, 0.f, 1.f);
+    const float sun_scale = mix(1.f, 5.f, abs(dot(sunDir, forward)));
+    float diameter_radians = (sun_scale * 1920.f / 3600.f) * (PI / 180.f);
+    float cos_sun_angular_radius = cos(diameter_radians / 2.f);
+    if (dot(dir, sunDir) > cos_sun_angular_radius) {
+        float r = abs(dot(dir, sunDir)) / cos_sun_angular_radius;
+        float t = intersectRaySphere(pos, dir, vec3(0.f), atmosphere.bottom);
+        color = limb ? color : vec3(100.f);
+        if (t < 0.0f)
+            return mix(r * vec3(100.f), color, r);
+    }
+
+    return vec3(0.f);
+}
+
+float uvs2unit(float u, float resolution) 
+{ 
+    return (u + 0.5f / resolution) * (resolution / (resolution + 1.0f)); 
+}
+
+float unit2uvs(float u, float resolution) { 
+    return (u - 0.5f / resolution) * (resolution / (resolution - 1.0f)); 
+}
+
+void uv2transmittance(vec2 uv, out float height, out float viewCosAngle)
+{
+    uvec2 res = uvec2(WIDTH, HEIGHT);
+    uv = vec2(uvs2unit(uv.x, res.x), uvs2unit(uv.y, res.y));
+    float xMu = uv.x;
+    float xR = uv.y;
+
+    float H = sqrt(atmosphere.top * atmosphere.top - atmosphere.bottom * atmosphere.bottom);
+    float rho = H * xR;
+    height = sqrt(rho * rho + atmosphere.bottom * atmosphere.bottom);
+
+    float dMin = atmosphere.top - height;
+    float dMax = rho + H;
+    float d = dMin + xMu * (dMax - dMin);
+    viewCosAngle = d == 0.0 ? 1.0f : (H * H - rho * rho - d * d) / (2.0 * height * d);
+    viewCosAngle = clamp(viewCosAngle, -1.0, 1.0);
+}
+
+void transmittance2uv(in float height, in float viewCosAngle, out vec2 uv)
+{
+    float H = sqrt(max(0.0f, atmosphere.top * atmosphere.top - atmosphere.bottom * atmosphere.bottom));
+    float rho = sqrt(max(0.0f, height * height - atmosphere.bottom * atmosphere.bottom));
+
+    float discriminant = height * height * (viewCosAngle * viewCosAngle - 1.0) + atmosphere.top * atmosphere.top;
+    float d = max(0.0, (-height * viewCosAngle + sqrt(max(discriminant, 0))));
+
+    float dMin = atmosphere.top - height;
+    float dMax = rho + H;
+    float xMu = (d - dMin) / (dMax - dMin);
+    float xR = rho / H;
+
+    uv = vec2(xMu, xR);
+}
+
+struct MScatteringResult {
+    vec3 L;
+    vec3 msAs1;
+};
+
+MScatteringResult integrateRadiance(vec3 pos, vec3 dir, vec3 sunDir) {
+    MScatteringResult result = { vec3(0.f), vec3(0.f) };
+    vec3 orig = vec3(0.f);
+
+    float tMax = getRayTmax(pos, dir, 9000000.f);
+    const float sampleCount = 20.f;
+    float dt = tMax / sampleCount;
+
+    float pu = 1.0 / (4.0 * PI);
+
+    vec3 L = vec3(0.f);
+    vec3 transmittance = vec3(1.f, 1.f, 1.f);
+    vec3 throughput = vec3(1.0f);
+    vec3 msAs1 = vec3(0.0f);
+
+    float t = 0.0f;
+    uvec3 wd = uvec3(1000000000.f * (dir * 0.5 + 0.5));
+    float segmentFrac = 0.3f;
+    for (float s = 0.f; s < sampleCount; s += 1.f) {
+        float tNew = tMax * (s + segmentFrac) / sampleCount;
+        dt = tNew - t;
+        t = tNew;
+    
+        vec3 p = pos + t * dir;
+
+        MediumRGBSample medium = sampleMedium(p);
+        const vec3 opticalThickness = medium.extinction * dt;
+        const vec3 sampleTrasnmittance = exp(-opticalThickness);
+
+        float height = length(p - orig);
+        const vec3 upVec = (p - orig) / height;
+        float sunCosAngle = dot(upVec, sunDir);
+
+        vec2 uv;
+        transmittance2uv(height, sunCosAngle, uv);
+        vec3 sunTransmittance = texture(transmittanceTex, uv).rgb;
+
+        vec3 f = medium.scattering * pu;
+        float ts = intersectRaySphere(p, sunDir, orig + 0.01 * upVec, atmosphere.bottom);
+        float eshadow = ts >= 0.0f ? 0.0f : 1.0f;
+        vec3 S = 1.f * (eshadow * sunTransmittance * f);
+
+        vec3 MS = medium.scattering * 1;
+        vec3 MSint = (MS - MS * sampleTrasnmittance) / medium.extinction;
+        msAs1 += transmittance * MSint;
+
+        vec3 Sint = (S - S * sampleTrasnmittance) / medium.extinction;
+        L += transmittance * Sint;
+        transmittance *= sampleTrasnmittance;
+    }
+
+    float tBottom = intersectRaySphere(pos, dir, orig, atmosphere.bottom);
+
+    if (tMax == tBottom && tBottom > 0.0) {
+        vec3 p = pos + tBottom * dir;
+
+        float height = length(p - orig);
+        vec3 upVec = (p - orig) / height;
+        float sunCosAngle = dot(upVec, sunDir);
+        vec2 uv;
+        transmittance2uv(height, sunCosAngle, uv);
+
+        vec3 sunTransmittance = texture(transmittanceTex, uv).rgb;
+
+        float nl = clamp(dot(normalize(upVec), normalize(sunDir)), 0.f, 1.f);
+        L += 1.f * sunTransmittance * transmittance * nl * vec3(0.01f, 0.01f, 0.01f) / PI;
+    }
+
+    result.L = L;
+    result.msAs1 = msAs1;
+
+    return result;
+}
+
+
+shared vec3 msAs1Shared[64];
+shared vec3 lShared[64];
+
+void main() {
+    float x = float(gl_GlobalInvocationID.x) / float(WIDTH);
+    float y = float(gl_GlobalInvocationID.y) / float(HEIGHT);
+    uint zIdx = gl_GlobalInvocationID.z;
+    vec2 pixPos = vec2(gl_GlobalInvocationID.xy) + 0.5f;
+    vec2 uv = pixPos / vec2(WIDTH, HEIGHT);
+    vec2 res = vec2(WIDTH, HEIGHT);
+    uv = vec2(uvs2unit(uv.x, res.x), uvs2unit(uv.y, res.y));
+
+    float cosSunAngle = uv.x * 2.0 - 1.0;
+    vec3 sunDir = vec3(0.0f, cosSunAngle, sqrt(1.0 - cosSunAngle * cosSunAngle));
+    float height = atmosphere.bottom + clamp(uv.y + 0.01, 0.0, 1.0) * (atmosphere.top - atmosphere.bottom - 0.01);
+
+    vec3 pos = vec3(0.0f, height, 0.0f);
+    vec3 dir = vec3(0.0, 1.0, 0.0);
+
+    const float solidAngle = 4.0 * PI;
+    const float isoAngle = 1.0 / solidAngle;
+
+    const uint sampleCountSqrt = 8;
+    const float sampleCount = 64.f;
+
+    float i = 0.5f + float(zIdx / sampleCountSqrt);
+    float j = 0.5f + float(zIdx - float((zIdx / sampleCountSqrt)*sampleCountSqrt));
+    {
+        float randaA = i / float(sampleCountSqrt);
+        float randaB = j / float(sampleCountSqrt);
+        float theta = 2.0f * PI * randaA;
+        float phi = PI * randaB;
+        dir.x = sin(theta) * sin(phi);
+        dir.y = cos(phi);
+        dir.z = cos(theta) * sin(phi);
+        MScatteringResult result = integrateRadiance(pos, dir, sunDir);
+
+        msAs1Shared[zIdx] = result.msAs1 * solidAngle / sampleCount;
+        lShared[zIdx] = result.L * solidAngle / sampleCount;
+    }
+
+    barrier();
+
+    if (zIdx < 32) {
+        msAs1Shared[zIdx] += msAs1Shared[zIdx + 32];
+        lShared[zIdx] += lShared[zIdx + 32];
+    }
+    barrier();
+
+    if (zIdx < 16) {
+        msAs1Shared[zIdx] += msAs1Shared[zIdx + 16];
+        lShared[zIdx] += lShared[zIdx + 16];
+    }
+    barrier();
+
+    if (zIdx < 8) {
+        msAs1Shared[zIdx] += msAs1Shared[zIdx + 8];
+        lShared[zIdx] += lShared[zIdx + 8];
+    }
+    barrier();
+    if (zIdx < 4) {
+        msAs1Shared[zIdx] += msAs1Shared[zIdx + 4];
+        lShared[zIdx] += lShared[zIdx + 4];
+    }
+    barrier();
+    if (zIdx < 2) {
+        msAs1Shared[zIdx] += msAs1Shared[zIdx + 2];
+        lShared[zIdx] += lShared[zIdx + 2];
+    }
+    barrier();
+    if (zIdx < 1) {
+        msAs1Shared[zIdx] += msAs1Shared[zIdx + 1];
+        lShared[zIdx] += lShared[zIdx + 1];
+    }
+    barrier();
+    if (zIdx > 0)
+        return;
+
+    vec3 msAs1 = msAs1Shared[0] * isoAngle;
+    vec3 inScatRadiance	= lShared[0] * isoAngle;
+
+    const vec3 r = clamp(msAs1, 0.0, 0.999);
+    const vec3 sumAllContrib = 1.0f / (1.0 - r);
+    vec3 L = inScatRadiance * sumAllContrib;
+
+    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(L, 1.f));
+}
+

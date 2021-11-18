@@ -50,6 +50,7 @@ typedef struct Renderer {
 
     uint32_t width;
     uint32_t height;
+    float exposure;
 
 } Renderer;
 
@@ -57,6 +58,8 @@ typedef struct GlobaUBO {
     sx_mat4 projection;
     sx_mat4 view;
     sx_mat4 projection_view;
+    sx_mat4 inverse_view;
+    sx_mat4 inverse_projection;
     sx_vec4 light_position[4];
     sx_vec4 camera_position;
     sx_vec4 exposure_gama;

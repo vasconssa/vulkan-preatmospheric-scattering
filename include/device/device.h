@@ -7,9 +7,11 @@
 #include "vulkan/vulkan.h"
 
 #include "device/input_manager.h"
+#include "world/camera.h"
 
 typedef struct {
     InputManager* input_manager;
+    FpsCamera camera;
     sx_rect viewport;
 } Device;
 

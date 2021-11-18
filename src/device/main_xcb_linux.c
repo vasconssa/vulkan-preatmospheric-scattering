@@ -277,7 +277,7 @@ void setup_window(DeviceWindow* win, bool fullscreen) {
 		win->window, linux_device.wm_protocols, 4, 32, 1,
 		&linux_device.wm_delete_window);
 
-	char* windowTitle = "Gabibits Wingsuit";
+	char* windowTitle = "Vulkan Atmospheric Scattering";
 	xcb_change_property(win->connection, XCB_PROP_MODE_REPLACE,
 		win->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
 		sx_strlen(windowTitle), windowTitle);
